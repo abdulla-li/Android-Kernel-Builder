@@ -16,19 +16,31 @@ jobs:
       - name: Download Source from GitHub Release
         run: |
           wget -O kernel.tar.gz "https://github.com/abdulla-li/Android-Kernel-Builder/releases/download/Build/android_16.0_kernel_SM7635.tar.gz"
-          ls -lh kernel.tar.gz
 
       - name: Extract Source
         run: |
           mkdir source
-          # REMOVED --strip-components=1 so the arch/ directory stays intact
           tar -xzvf kernel.tar.gz -C source
+
+      - name: Download Official Google Toolchain
+        run: |
+          # Vivo didn't include the toolchain, so we download it directly from Google.
+          # Using sparse-checkout to grab ONLY the exact version we need, saving time and space.
+          echo "Cloning official Clang r487747c..."
+          git clone --filter=blob:none --no-checkout https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 toolchain
+          cd toolchain
+          git sparse-checkout set clang-r487747c
+          git checkout main || git checkout master
+          echo "Toolchain downloaded successfully."
 
       - name: Build Kernel
         run: |
-          # 1. Setup Toolchain
-          export CLANG_PATH=$(find $PWD/source -name "clang-r487747c" | head -n 1)
+          # 1. Point the build system to the Google toolchain we just downloaded
+          export CLANG_PATH=$PWD/toolchain/clang-r487747c
           export PATH=$CLANG_PATH/bin:$PATH
+          
+          # Verify the linker is now available
+          ld.lld --version
           
           export ARCH=arm64
           export SUBARCH=arm64

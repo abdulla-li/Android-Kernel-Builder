@@ -15,10 +15,10 @@ jobs:
 
       - name: Download Source from GitHub Release
         run: |
-          # REPLACE the URL below with the link you copied from your GitHub Release
-          wget -O kernel.tar.gz "https://github.com/abdulla-li/Android-Kernel-Builder/releases/download/Build/android_16.0_kernel_SM7635.tar.gz"
+          # Make sure to replace this URL with your actual GitHub Release direct link
+          wget -O kernel.tar.gz "https://github.com/YOUR_USERNAME/Android-Kernel-Builder/releases/download/v1.0/android_16.0_kernel_SM7635.tar.gz"
           
-          # This will now show ~218MB, proving it worked.
+          # Verify download size (~218MB)
           ls -lh kernel.tar.gz
 
       - name: Extract Source
@@ -29,6 +29,8 @@ jobs:
       - name: Build Kernel
         run: |
           cd source
+          
+          # 1. Setup Toolchain (Finds clang-r487747c automatically)
           export CLANG_PATH=$(find $PWD -name "clang-r487747c" | head -n 1)
           export PATH=$CLANG_PATH/bin:$PATH
           
@@ -39,14 +41,27 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
+          # 2. Auto-find the correct kernel directory
+          CONFIG_PATH=$(find $PWD -name "gki_defconfig" | head -n 1)
+          echo "Found config at: $CONFIG_PATH"
+          
+          # Strip the config path to get the kernel root
+          KERNEL_DIR=${CONFIG_PATH%/arch/arm64/configs/gki_defconfig}
+          echo "Navigating to Kernel Root: $KERNEL_DIR"
+          cd "$KERNEL_DIR"
+          
+          # 3. Build vmlinux and Image
           make O=out gki_defconfig
           make -j$(nproc) O=out vmlinux Image
           
+          # 4. Prepare artifacts for upload (avoids path guessing errors)
+          mkdir -p $GITHUB_WORKSPACE/upload_artifacts
+          cp out/vmlinux $GITHUB_WORKSPACE/upload_artifacts/
+          cp out/include/generated/asm-offsets.h $GITHUB_WORKSPACE/upload_artifacts/
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kernel-build-output
-          path: |
-            source/out/vmlinux
-            source/out/include/generated/asm-offsets.h
-            
+          path: upload_artifacts/
+          

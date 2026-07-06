@@ -1,82 +1,51 @@
-name: Build Nothing Tetris Kernel (Kleaf)
-
-on:
-  workflow_dispatch:
+name: Build Vivo T4 Kernel
+on: workflow_dispatch
 
 jobs:
   build:
-    runs-on: self-hosted
-    permissions:
-      contents: write
-    env:
-      WORKDIR: ${{ github.workspace }}
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout device modules repo
+      - name: Checkout Build Environment
         uses: actions/checkout@v4
 
-      - name: Clone kernel and vendor modules
+      - name: Install Dependencies
         run: |
-          set -eux
-          git clone --depth=1 -b Tetris-2 https://github.com/abdulla-lin/android_kernel_6.1_nothing_mt6878.git kernel-6.1
-          mkdir -p vendor/mediatek
-          git clone --depth=1 -b mt6878/Tetris/u https://github.com/abdulla-lin/android_kernel_modules_nothing_mt6878.git vendor/mediatek/kernel_modules
-          ln -s kernel-6.1 kernel- || true
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar clang lld llvm binutils
 
-      - name: Install Bazelisk (user-space)
+      - name: Setup Toolchain
         run: |
-          set -eux
-          curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.20.0/bazelisk-linux-amd64 -o bazel
-          chmod +x bazel
-          echo "$PWD" >> $GITHUB_PATH
+          git clone --depth=1 https://github.com/llvm/llvm-project -b llvmorg-17.0.2
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CC=clang
+          export LLVM=1
+          export LLVM_IAS=1
+          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "SUBARCH=arm64" >> $GITHUB_ENV
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "LLVM=1" >> $GITHUB_ENV
+          echo "LLVM_IAS=1" >> $GITHUB_ENV
 
-      - name: Bazel cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/bazel
-            ~/.cache/bazelisk
-          key: bazel-${{ runner.os }}-${{ hashFiles('**/WORKSPACE', '**/*.bzl', '**/BUILD*') }}
-          restore-keys: |
-            bazel-${{ runner.os }}-
-
-      - name: Prepare repo Bazel wrapper (optional)
+      - name: Download and Extract Source
         run: |
-          set -eux
-          if [ -x ./build/bazel/prepare.sh ]; then
-            ./build/bazel/prepare.sh || true
-          fi
+          # Replace with your direct Google Drive link
+          wget --no-check-certificate 'https://drive.google.com/drive/u/2/mobile/my-drive' -O kernel.tar.gz
+          mkdir source
+          tar -xzvf kernel.tar.gz -C source --strip-components=1
 
-      - name: Build dist target (Kleaf)
+      - name: Build Kernel and vmlinux
         run: |
-          set -eux
-          if [ -x ./build/bazel/bin/bazelisk ]; then
-            ./build/bazel/bin/bazelisk build //common:dist --config=fast
-          else
-            ./bazel build //common:dist --config=fast
-          fi
-
-      - name: Locate and package artifacts
-        run: |
-          set -eux
-          mkdir -p artifacts
-          # Probe common Kleaf dist locations
-          find "$PWD" -maxdepth 6 -type d -name dist -print || true
-          cp -v out/**/dist/Image* artifacts/ 2>/dev/null || true
-          cp -v out/**/dist/*.img artifacts/ 2>/dev/null || true
-          cp -rv out/**/dist/modules artifacts/ 2>/dev/null || true
-          # Some trees place outputs under kernel-6.1/out
-          cp -v kernel-6.1/out/**/dist/Image* artifacts/ 2>/dev/null || true
-          cp -v kernel-6.1/out/**/dist/*.img artifacts/ 2>/dev/null || true
-          cp -rv kernel-6.1/out/**/dist/modules artifacts/ 2>/dev/null || true
-          cd artifacts && zip -r ../kernel_artifacts.zip . || true
-          echo "Zipped at $PWD/../kernel_artifacts.zip"
-
-      - name: Upload kernel artifacts
+          cd source
+          make O=out gki_defconfig
+          # Build vmlinux (uncompressed, contains symbols) and the compressed Image
+          make -j$(nproc) O=out vmlinux Image
+          
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kernel_artifacts
+          name: kernel-build-output
           path: |
-            kernel_artifacts.zip
-            artifacts/**
-          if-no-files-found: warn
+            source/out/vmlinux
+            source/out/arch/arm64/boot/Image
+            source/out/include/generated/asm-offsets.h

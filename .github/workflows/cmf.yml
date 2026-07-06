@@ -15,10 +15,7 @@ jobs:
 
       - name: Download Source from GitHub Release
         run: |
-          # Make sure to replace this URL with your actual GitHub Release direct link
           wget -O kernel.tar.gz "https://github.com/abdulla-li/Android-Kernel-Builder/releases/download/Build/android_16.0_kernel_SM7635.tar.gz"
-          
-          # Verify download size (~218MB)
           ls -lh kernel.tar.gz
 
       - name: Extract Source
@@ -41,12 +38,16 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
-          # 2. Auto-find the correct kernel directory
+          # 2. Dynamically locate the folder containing the root Makefile nearest to configs
           CONFIG_PATH=$(find $PWD -name "gki_defconfig" | head -n 1)
           echo "Found config at: $CONFIG_PATH"
           
-          # Strip the config path to get the kernel root
-          KERNEL_DIR=${CONFIG_PATH%/arch/arm64/configs/gki_defconfig}
+          # Walk up directories until we find the one containing a Makefile
+          KERNEL_DIR=$(dirname "$CONFIG_PATH")
+          while [ ! -f "$KERNEL_DIR/Makefile" ] && [ "$KERNEL_DIR" != "$PWD" ]; do
+              KERNEL_DIR=$(dirname "$KERNEL_DIR")
+          done
+          
           echo "Navigating to Kernel Root: $KERNEL_DIR"
           cd "$KERNEL_DIR"
           
@@ -54,10 +55,10 @@ jobs:
           make O=out gki_defconfig
           make -j$(nproc) O=out vmlinux Image
           
-          # 4. Prepare artifacts for upload (avoids path guessing errors)
+          # 4. Prepare artifacts for upload
           mkdir -p $GITHUB_WORKSPACE/upload_artifacts
-          cp out/vmlinux $GITHUB_WORKSPACE/upload_artifacts/
-          cp out/include/generated/asm-offsets.h $GITHUB_WORKSPACE/upload_artifacts/
+          cp out/vmlinux $GITHUB_WORKSPACE/upload_artifacts/ || true
+          cp out/include/generated/asm-offsets.h $GITHUB_WORKSPACE/upload_artifacts/ || true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

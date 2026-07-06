@@ -38,15 +38,12 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
-          # 2. Dynamically locate the folder containing the root Makefile nearest to configs
+          # 2. Get exact config path and strip the suffix safely
           CONFIG_PATH=$(find $PWD -name "gki_defconfig" | head -n 1)
           echo "Found config at: $CONFIG_PATH"
           
-          # Walk up directories until we find the one containing a Makefile
-          KERNEL_DIR=$(dirname "$CONFIG_PATH")
-          while [ ! -f "$KERNEL_DIR/Makefile" ] && [ "$KERNEL_DIR" != "$PWD" ]; do
-              KERNEL_DIR=$(dirname "$KERNEL_DIR")
-          done
+          # This cuts off either "/arm64/configs/gki_defconfig" or "/arch/arm64/configs/gki_defconfig"
+          KERNEL_DIR=$(echo "$CONFIG_PATH" | sed -E 's|/arch/arm64/configs/gki_defconfig$||; s|/arm64/configs/gki_defconfig$||')
           
           echo "Navigating to Kernel Root: $KERNEL_DIR"
           cd "$KERNEL_DIR"

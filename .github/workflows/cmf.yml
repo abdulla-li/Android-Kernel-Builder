@@ -21,14 +21,13 @@ jobs:
       - name: Extract Source
         run: |
           mkdir source
-          tar -xzvf kernel.tar.gz -C source --strip-components=1
+          # REMOVED --strip-components=1 so the arch/ directory stays intact
+          tar -xzvf kernel.tar.gz -C source
 
       - name: Build Kernel
         run: |
-          cd source
-          
-          # 1. Setup Toolchain (Finds clang-r487747c automatically)
-          export CLANG_PATH=$(find $PWD -name "clang-r487747c" | head -n 1)
+          # 1. Setup Toolchain
+          export CLANG_PATH=$(find $PWD/source -name "clang-r487747c" | head -n 1)
           export PATH=$CLANG_PATH/bin:$PATH
           
           export ARCH=arm64
@@ -38,21 +37,20 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
-          # 2. Get exact config path and strip the suffix safely
-          CONFIG_PATH=$(find $PWD -name "gki_defconfig" | head -n 1)
+          # 2. Find the exact config file in the intact tree
+          CONFIG_PATH=$(find $PWD/source -path "*/arch/arm64/configs/gki_defconfig" | head -n 1)
           echo "Found config at: $CONFIG_PATH"
           
-          # This cuts off either "/arm64/configs/gki_defconfig" or "/arch/arm64/configs/gki_defconfig"
-          KERNEL_DIR=$(echo "$CONFIG_PATH" | sed -E 's|/arch/arm64/configs/gki_defconfig$||; s|/arm64/configs/gki_defconfig$||')
-          
+          # 3. Strip the known suffix to get the pure kernel root
+          KERNEL_DIR=${CONFIG_PATH%/arch/arm64/configs/gki_defconfig}
           echo "Navigating to Kernel Root: $KERNEL_DIR"
           cd "$KERNEL_DIR"
           
-          # 3. Build vmlinux and Image
+          # 4. Build vmlinux and Image
           make O=out gki_defconfig
           make -j$(nproc) O=out vmlinux Image
           
-          # 4. Prepare artifacts for upload
+          # 5. Prepare artifacts for upload
           mkdir -p $GITHUB_WORKSPACE/upload_artifacts
           cp out/vmlinux $GITHUB_WORKSPACE/upload_artifacts/ || true
           cp out/include/generated/asm-offsets.h $GITHUB_WORKSPACE/upload_artifacts/ || true

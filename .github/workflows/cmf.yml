@@ -5,35 +5,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Build Environment
+      - name: Checkout Actions
         uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar clang lld llvm binutils
+          sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar python3-pip
+          pip3 install gdown
 
-      - name: Setup Toolchain
+      - name: Download and Extract Source
         run: |
-          git clone --depth=1 https://github.com/llvm/llvm-project -b llvmorg-17.0.2
+          # Replace with your actual shareable Google Drive link
+          gdown 'https://drive.usercontent.google.com/download?id=1psqhj83p4ZdxOCBIFwP3rVsbwhzvGrm2&export=download&authuser=2' -O kernel.tar.gz
+          mkdir source
+          tar -xzvf kernel.tar.gz -C source --strip-components=1
+
+      - name: Build Kernel
+        run: |
+          cd source
+          # Identify the clang toolchain path within the extracted source
+          export CLANG_PATH=$(find $PWD -name "clang-r487747c" | head -n 1)
+          export PATH=$CLANG_PATH/bin:$PATH
+          
+          # Environment variables for Vivo SM7635 build
           export ARCH=arm64
           export SUBARCH=arm64
           export CC=clang
           export LLVM=1
           export LLVM_IAS=1
-          echo "ARCH=arm64" >> $GITHUB_ENV
-          echo "SUBARCH=arm64" >> $GITHUB_ENV
-          echo "CC=clang" >> $GITHUB_ENV
-          echo "LLVM=1" >> $GITHUB_ENV
-          echo "LLVM_IAS=1" >> $GITHUB_ENV
-
-      - name: Download and Extract Source
-        run: |
-          # Replace with your direct Google Drive link
-          wget --no-check-certificate 'https://drive.google.com/drive/u/2/mobile/my-drive' -O kernel.tar.gz
-          mkdir source
-          tar -xzvf kernel.tar.gz -C source --strip-components=1
-
+          export CROSS_COMPILE=aarch64-linux-android-
+          
+          # Generate config and build vmlinux
+          make O=out gki_defconfig
+          make -j$(nproc) O=out vmlinux Image
+          
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-build-output
+          path: |
+            source/out/vmlinux
+            source/out/include/generated/asm-offsets.h
       - name: Build Kernel and vmlinux
         run: |
           cd source

@@ -5,30 +5,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Actions
+      - name: Checkout Repo
         uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar python3-pip
-          pip3 install gdown
+          sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar
 
       - name: Download and Extract Source
         run: |
-          # Replace with your actual shareable Google Drive link
-          gdown 'https://drive.usercontent.google.com/download?id=1psqhj83p4ZdxOCBIFwP3rVsbwhzvGrm2&export=download&authuser=2' -O kernel.tar.gz
+          FILE_ID="1psqhj83p4ZdxOCBIFwP3rVsbwhzvGrm2"
+          # Bypass the Google Drive "Virus Scan" warning page
+          CONFIRM=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate "https://docs.google.com/uc?export=download&id=$FILE_ID" -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p' | head -n 1)
+          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$CONFIRM&id=$FILE_ID" -O kernel.tar.gz
+          
+          # Extract the source
           mkdir source
           tar -xzvf kernel.tar.gz -C source --strip-components=1
+          echo "Source extracted successfully."
 
       - name: Build Kernel
         run: |
           cd source
-          # Identify the clang toolchain path within the extracted source
+          # Locate exact clang toolchain (r487747c) from inside the source
           export CLANG_PATH=$(find $PWD -name "clang-r487747c" | head -n 1)
           export PATH=$CLANG_PATH/bin:$PATH
           
-          # Environment variables for Vivo SM7635 build
+          # Build environment for Vivo T4 (SM7635)
           export ARCH=arm64
           export SUBARCH=arm64
           export CC=clang
@@ -36,10 +40,10 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
-          # Generate config and build vmlinux
+          # Build vmlinux and Image
           make O=out gki_defconfig
           make -j$(nproc) O=out vmlinux Image
-          
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -47,18 +51,4 @@ jobs:
           path: |
             source/out/vmlinux
             source/out/include/generated/asm-offsets.h
-      - name: Build Kernel and vmlinux
-        run: |
-          cd source
-          make O=out gki_defconfig
-          # Build vmlinux (uncompressed, contains symbols) and the compressed Image
-          make -j$(nproc) O=out vmlinux Image
-          
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-build-output
-          path: |
-            source/out/vmlinux
-            source/out/arch/arm64/boot/Image
-            source/out/include/generated/asm-offsets.h
+            

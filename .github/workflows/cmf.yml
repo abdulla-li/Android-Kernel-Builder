@@ -13,26 +13,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar
 
-      - name: Download and Extract Source
+      - name: Extract Local Source
         run: |
-          FILE_ID="1psqhj83p4ZdxOCBIFwP3rVsbwhzvGrm2"
-          # Bypass the Google Drive "Virus Scan" warning page
-          CONFIRM=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate "https://docs.google.com/uc?export=download&id=$FILE_ID" -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p' | head -n 1)
-          wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$CONFIRM&id=$FILE_ID" -O kernel.tar.gz
-          
-          # Extract the source
+          # Ensure 'android_16.0_kernel_SM7635.tar.gz' is in your repo root
           mkdir source
-          tar -xzvf kernel.tar.gz -C source --strip-components=1
-          echo "Source extracted successfully."
+          tar -xzvf android_16.0_kernel_SM7635.tar.gz -C source --strip-components=1
 
       - name: Build Kernel
         run: |
           cd source
-          # Locate exact clang toolchain (r487747c) from inside the source
+          # Locate the clang toolchain (r487747c) inside your source
           export CLANG_PATH=$(find $PWD -name "clang-r487747c" | head -n 1)
           export PATH=$CLANG_PATH/bin:$PATH
           
-          # Build environment for Vivo T4 (SM7635)
+          # Environment variables for Vivo SM7635 build
           export ARCH=arm64
           export SUBARCH=arm64
           export CC=clang
@@ -40,10 +34,10 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
-          # Build vmlinux and Image
+          # Configure and Build
           make O=out gki_defconfig
           make -j$(nproc) O=out vmlinux Image
-
+          
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:

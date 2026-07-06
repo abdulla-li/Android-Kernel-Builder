@@ -13,18 +13,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar
 
-      - name: Download Source
+      - name: Download Source from GitHub Release
         run: |
-          # This forces the download of your 218MB file
-          wget --no-check-certificate "https://docs.google.com/uc?export=download&confirm=t&id=1psqhj83p4ZdxOCBIFwP3rVsbwhzvGrm2" -O android_16.0_kernel_SM7635.tar.gz
+          # REPLACE the URL below with the link you copied from your GitHub Release
+          wget -O kernel.tar.gz "https://github.com/abdulla-li/Android-Kernel-Builder/releases/download/build/android_16.0_kernel_SM7635.tar.gz"
           
-          # Verify download
-          ls -lh android_16.0_kernel_SM7635.tar.gz
+          # This will now show ~218MB, proving it worked.
+          ls -lh kernel.tar.gz
 
       - name: Extract Source
         run: |
           mkdir source
-          tar -xzvf android_16.0_kernel_SM7635.tar.gz -C source --strip-components=1
+          tar -xzvf kernel.tar.gz -C source --strip-components=1
 
       - name: Build Kernel
         run: |

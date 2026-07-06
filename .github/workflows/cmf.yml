@@ -16,7 +16,7 @@ jobs:
       - name: Download Source from GitHub Release
         run: |
           # Make sure to replace this URL with your actual GitHub Release direct link
-          wget -O kernel.tar.gz "https://github.com/YOUR_USERNAME/Android-Kernel-Builder/releases/download/v1.0/android_16.0_kernel_SM7635.tar.gz"
+          wget -O kernel.tar.gz "https://github.com/abdulla-li/Android-Kernel-Builder/releases/download/Build/android_16.0_kernel_SM7635.tar.gz"
           
           # Verify download size (~218MB)
           ls -lh kernel.tar.gz

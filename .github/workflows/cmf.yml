@@ -5,7 +5,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
+      - name: Checkout Actions
         uses: actions/checkout@v4
 
       - name: Install Dependencies
@@ -13,20 +13,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential cpio curl flex git libssl-dev libncurses5-dev zlib1g-dev libelf-dev dwarves wget unzip xz-utils tar
 
-      - name: Extract Local Source
+      - name: Download Source
         run: |
-          # Ensure 'android_16.0_kernel_SM7635.tar.gz' is in your repo root
+          # This forces the download of your 218MB file
+          wget --no-check-certificate "https://docs.google.com/uc?export=download&confirm=t&id=1psqhj83p4ZdxOCBIFwP3rVsbwhzvGrm2" -O android_16.0_kernel_SM7635.tar.gz
+          
+          # Verify download
+          ls -lh android_16.0_kernel_SM7635.tar.gz
+
+      - name: Extract Source
+        run: |
           mkdir source
           tar -xzvf android_16.0_kernel_SM7635.tar.gz -C source --strip-components=1
 
       - name: Build Kernel
         run: |
           cd source
-          # Locate the clang toolchain (r487747c) inside your source
           export CLANG_PATH=$(find $PWD -name "clang-r487747c" | head -n 1)
           export PATH=$CLANG_PATH/bin:$PATH
           
-          # Environment variables for Vivo SM7635 build
           export ARCH=arm64
           export SUBARCH=arm64
           export CC=clang
@@ -34,7 +39,6 @@ jobs:
           export LLVM_IAS=1
           export CROSS_COMPILE=aarch64-linux-android-
           
-          # Configure and Build
           make O=out gki_defconfig
           make -j$(nproc) O=out vmlinux Image
           
